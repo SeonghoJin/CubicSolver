@@ -15,12 +15,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\..\Documents\카카오톡 받은 파일\CubicSolver\CubicSolver.hpp">
+    <ClInclude Include="..\CubicSolver.hpp">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\..\Documents\카카오톡 받은 파일\CubicSolver\CubicSolverTest.cpp">
+    <ClCompile Include="..\CubicSolverTest.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
