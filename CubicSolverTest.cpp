@@ -5,7 +5,10 @@
 #include "CubicSolver.hpp"
 int main()
 {
-	
+	CubicSolver<int, int> cubicSolver;
+	CubicSolver<int, int>::Node node;
+
+
 	
 }
 

@@ -34,7 +34,7 @@ public:
 		*/
 		
 		
-		bool operator==(const typename CubicSolver<V, T, cycleElimination>::Node& other);
+	bool operator==(const typename CubicSolver<V, T, cycleElimination>::Node& other);
 
 };
 
@@ -81,8 +81,11 @@ inline int CubicSolver<V, T, cycleElimination>::nextTokenId()
 
 template<typename V, typename T, bool cycleElimination>
 inline int CubicSolver<V, T, cycleElimination>::getTokenInt(T& tkn)
-{
-	tokenToInt[tkn] = nextTokenId();
+{	
+	if (tokenToInt.find(tkn) == tokenToInt.end()) {
+		tokenToInt[tkn] = nextTokenId();
+	}
+
 	return tokenToInt[tkn];
 }
 
@@ -131,12 +134,12 @@ inline void CubicSolver<V, T, cycleElimination>::collapseCycle(std::list<Node>& 
 {
 	if (!cycle.empty()) {
 		Node first = cycle.front();
-
+		
 		for_each(cycle.rbegin(), cycle.rend(), [&](Node oldNode) {
 			std::merge(first.succ.begin(), first.succ.end(),
 				oldNode.succ.begin(), oldNode.succ.end(),
 				std::inserter(first.succ, first.succ.begin()));
-			
+
 			for_each(first.conditionals.begin(), first.conditionals.end(), [&](std::pair<int, std::set<std::pair<V, V>>>& condition) {
 				int key = condition.first;
 				std::merge(first.conditionals[key].begin(), first.conditionals[key].end(),
@@ -165,58 +168,94 @@ inline void CubicSolver<V, T, cycleElimination>::addAndPropagateBits(std::bitset
 	std::bitset<bitsetLength> newTokens = old | s;
 	if (newTokens != old) {
 		node.tokenSol |= s;
+		
 		std::bitset<bitsetLength> diff = newTokens & ~old;
+		std::string diff_string = diff.to_string();
+		std::set<int> diff_set;
+		int key = 0;
+		for_each(diff_string.begin(), diff_string.end(), [&](char bit) {
+			if (bit == '1')diff_set.insert(key);
+			key++;
+		});
 
+		for_each(diff_set.begin(), diff_set.end(), [&](int key) {
+			std::set<std::pair<V, V>> condition = node.conditionals[key];
+			for_each(condition.begin(), condition.end(), [](std::pair<V, V> constraint) {
+				addSubsetConstraint(constraint.first, constraint.second);
+				});
+			});
+
+		for_each(diff_set.begin(), diff_set.end(), [&](int key) {
+			node.conditionals.erase(key);
+			});
+
+		for_each(node.succ.begin(), node.succ.end(), [](V v) {
+			addAndPropagateBits(newTokens, v);
+			});
 	}
 }
 
-/*
-private def addAndPropagateBits(s: mutable.BitSet, x: V): Unit = {
-	val node = getOrPutNode(x)
-	val old = node.tokenSol.clone()
-	val newTokens = old | s
-	if (newTokens != old) {
-	  // Set the new bits
-	  node.tokenSol |= s
-	  val diff = newTokens &~ old
-
-	  // Add edges from pending lists, then clear the lists
-	  diff.foreach { t =>
-		node.conditionals.getOrElse(t, Set()).foreach {
-		  case (v1, v2) =>
-			addSubsetConstraint(v1, v2)
-		}
-	  }
-	  diff.foreach { t =>
-		node.conditionals.remove(t)
-	  }
-
-	  // Propagate to successors
-	  node.succ.foreach { s =>
-		addAndPropagateBits(newTokens, s)
-	  }
-	}
-  }*/
 template<typename V, typename T, bool cycleElimination>
 inline void CubicSolver<V, T, cycleElimination>::addConstantConstraint(T t, V x)
 {
-
+	std::bitset<bitsetLength> bs;
+	int tokenInt = getTokenInt(t);
+	bs.set(t, 1);
+	addAndPropagateBits(bs, x);
 }
 
 template<typename V, typename T, bool cycleElimination>
 inline void CubicSolver<V, T, cycleElimination>::addSubsetConstraint(V x, V y)
 {
+	Node nx = getOrPutNode(x);
+	Node ny = getOrPutNode(y);
+
+	if (nx != ny) {
+		nx.succ.insert(ny);
+
+		addAndPropagateBits(nx.tokenSol, y);
+
+		if (cycleElimination) {
+			collapseCycle(detectPath(ny, nx));
+		}
+	}
 }
 
 template<typename V, typename T, bool cycleElimination>
 inline void CubicSolver<V, T, cycleElimination>::addConditionalConstraint(T t, V x, V y, V z)
 {
+	Node xn = getOrPutNode(x);
+	int tokenInt = getTokenInt(t);
+	if (xn.tokenSol[tokenInt]) {
+		addSubsetConstraint(y, z);
+	}
+	else if (y != z) {
+		xn.conditionals.insert(std::make_pair(y,z));
+	}
 }
 
 template<typename V, typename T, bool cycleElimination>
 inline std::map<V, std::set<T>> CubicSolver<V, T, cycleElimination>::getSolution()
-{
-	return std::map<V, std::set<T>>();
+{	
+	std::map<int, std::set<T>>  intToToken;
+	std::for_each(tokenToInt.begin(), tokenToInt.end(), [&](std::pair<T, int> t) {
+		intToToken[t.second] = t.first;
+		});
+	
+	std::map<V, std::set<T>> ret;
+	for_each(varToNode.begin(), varToNode.end(), [&](std::pair<V, Node> t) {
+		Node v = t.second;
+		std::string tokenSol_str = v.tokenSol.to_string();
+		int key = 0;
+		for_each(tokenSol_str.begin(), tokenSol_str.end(), [&](char bit) {
+			if (bit == '1') {
+				ret[v] = intToToken(key);
+			}
+			key++;
+			});
+		});
+
+	return ret;
 }
 
 
@@ -224,5 +263,4 @@ template<typename V, typename T, bool cycleElimination>
 bool CubicSolver<V, T, cycleElimination>::Node::operator==(const typename CubicSolver<V, T, cycleElimination>::Node& other)
 {
 	return this == &other;
-		
 }
